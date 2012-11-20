@@ -44,8 +44,6 @@ def create_pieces(options=None):
     PIECE_SIZE = options.size
     PADDING = options.padding
     
-    # -format "%[fx:w/72] by %[fx:h/72] inches" document.png
-    
     identify = check_output(["identify", "-format", "%[w] %[h]", options.filename])
     if identify.endswith('\n'):
         identify = identify[:-1]

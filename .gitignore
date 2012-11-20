@@ -1,0 +1,6 @@
+tmp
+output
+images
+assets
+*.pyc
+*.pyo

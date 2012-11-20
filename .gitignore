@@ -4,3 +4,4 @@ images
 assets
 *.pyc
 *.pyo
+.DS_Store

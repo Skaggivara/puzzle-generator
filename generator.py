@@ -113,9 +113,17 @@ def create_pieces(options=None):
         
         pieces_info = pieces_info[atlases_required[i]["pieces"]:len(pieces_info)]
         
-    # print array of atlases json data
+    # encode puzzle to json
+    puzzle = {
+        "name": basename,
+        "rows": rows,
+        "columns": columns,
+        "num_pieces": rows * columns,
+        "atlases": atlases
+    }
+    
     data_file = open(os.path.join(os.getcwd(), OUTPUT_FOLDER, "%s_atlas.json" % basename), 'w')
-    data_file.write(json.dumps(atlases))
+    data_file.write(json.dumps(puzzle))
     data_file.close()
     
     print "all done!"
@@ -219,7 +227,7 @@ def generate_pieces(rows, columns):
             piece = {
                 "mask": "",
                 "corners": [0,0,0,0],
-                "offset": [column, row]
+                "offset": [column, row],
             }
             
             piece_type = "middle"

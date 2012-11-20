@@ -1,7 +1,7 @@
 ## Installation ##
 
 brew install imagemagick
-pip install < requirements.txt
+pip install -r requirements.txt
 
 ## Requirements ##
 
@@ -9,4 +9,4 @@ Imagemagick and see requirements.txt.
 
 ## Usage ##
 
-See help
+-h or --help

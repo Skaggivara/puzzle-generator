@@ -9,4 +9,4 @@ Imagemagick and see requirements.txt.
 
 ## Usage ##
 
--h or --help
+./puzzle --help

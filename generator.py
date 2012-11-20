@@ -10,6 +10,10 @@ import random
 from optparse import OptionParser
 from subprocess import call, check_call, CalledProcessError
 
+"""
+TODO: Add texture compression option
+"""
+
 
 MASK_SIZE           = 200.0
 IMG_AREA_SIZE       = 139.0
@@ -131,7 +135,7 @@ def atlases_needed(piece_size, num_pieces):
     
     return atlases
 
-# DONE!    
+
 def print_pieces(input, piece_size, offset, pieces):
     
     for i in range(len(pieces)):
@@ -145,7 +149,6 @@ def print_pieces(input, piece_size, offset, pieces):
         call(["convert", input, mask, "-geometry", "+%d+%d" % (x * offset, y * offset), "-alpha", "Off", "-compose", "CopyOpacity", "-composite", "-crop","%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
     
 
-# DONE
 def print_to_atlas(name, size, piece_size, pieces):
     
     atlas_info = {
@@ -192,12 +195,12 @@ def print_to_atlas(name, size, piece_size, pieces):
     
     return atlas_info    
 
-# DONE! how many pieces in this size atlas
+# how many pieces in this size atlas
 def get_atlas_max(size, piece_size):
     per_row = size / piece_size
     return per_row * per_row
     
-# DONE! whats the smallest fit for these pieces
+# whats the smallest fit for these pieces
 def get_atlas_fit(piece_size, num_pieces):
     for i in range(len(ATLAS_SIZES)):
         per_atlas = get_atlas_max(ATLAS_SIZES[i], piece_size)
@@ -205,7 +208,7 @@ def get_atlas_fit(piece_size, num_pieces):
             return ATLAS_SIZES[i]
     return None
 
-# DONE! generate a playing field
+# generate a playing field
 def generate_pieces(rows, columns):
     
     pieces = []
@@ -295,7 +298,7 @@ def get_memory_size(size):
     
     return memoryMBytes
 
-# DONE!
+
 def _imagemagick_installed():
     
     try:
@@ -304,7 +307,7 @@ def _imagemagick_installed():
     except CalledProcessError:
         return False
 
-# DONE! surpress printing
+
 def _texturetools_installed():
     #, stdout=open(os.devnull, 'wb')
     try:
@@ -332,11 +335,12 @@ if __name__ == "__main__":
                       help="specify a target size for each piece, default 100", type="int", default=100)
     
     parser.add_option("-p", "--padding", dest="padding",
-                      help="specify a padding between pieces", type="int", default=2)
+                      help="specify a padding between pieces, default 2", type="int", default=2)
+    
+    parser.add_option("-c", "--compress", dest="compress", action="store_true",
+                      help="compression, default false", default=False)
     
     (options, args) = parser.parse_args()
-    
-    sys.exit(0)
     
     # check options
     if options.filename is None:

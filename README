@@ -1,5 +1,7 @@
 ## Installation ##
 
+brew install imagemagick
+pip install < requirements.txt
 
 ## Requirements ##
 

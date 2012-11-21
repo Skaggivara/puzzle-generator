@@ -91,7 +91,7 @@ def create_pieces(options=None):
     
     bordered_file = os.path.join(os.getcwd(), TMP_FOLDER, "bordered.png")
     
-    print "adding border..."
+    print "preparing image..."
     call(["convert", fixed_file, "-matte", "-bordercolor", "none", "-border", "%d" % border_size, bordered_file])
     
     # generate playing field

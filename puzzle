@@ -43,6 +43,7 @@ def create_pieces(options=None):
     
     PIECE_SIZE = options.size
     PADDING = options.padding
+    OUTPUT_FOLDER = options.output
     
     identify = check_output(["identify", "-format", "%[w] %[h]", options.filename])
     if identify.endswith('\n'):
@@ -188,13 +189,16 @@ def print_to_atlas(name, size, piece_size, pieces):
         
         piece_w_h = piece_size + (PADDING * 2)
         
-        real_x = (col * piece_w_h)+PADDING
-        real_y = (row * piece_w_h)+PADDING
+        real_s_x = (col * piece_w_h)+PADDING
+        real_s_y = (row * piece_w_h)+PADDING
+        
+        real_e_x = (col * piece_w_h)+(PADDING + piece_size)
+        real_e_y = (row * piece_w_h)+(PADDING + piece_size)
         
         tile = os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))
         
-        atlas_command += ["-draw", "image Over %d,%d %d,%d '%s'" % (real_x, real_y, piece_size, piece_size, tile)]
-        atlas_info["pieces"].append({"id":[x,y], "x":[((col*piece_w_h)+PADDING)/float(size),(((col+1)*piece_w_h)+PADDING)/float(size)], "y":[((row*piece_w_h)+PADDING)/float(size),(((row+1)*piece_w_h)+PADDING)/float(size)]})
+        atlas_command += ["-draw", "image Over %d,%d %d,%d '%s'" % (real_s_x, real_s_y, piece_size, piece_size, tile)]
+        atlas_info["pieces"].append({"id":[x,y], "x":[real_s_x/float(size),real_e_x/float(size)], "y":[real_s_y/float(size),real_e_y/float(size)]})
         col += 1
     
     result = os.path.join(os.getcwd(), OUTPUT_FOLDER, "%s_atlas_%sx%s.png" % (name, size, size))
@@ -340,6 +344,9 @@ if __name__ == "__main__":
     parser = OptionParser()
     parser.add_option("-f", "--file", dest="filename",
                       help="specify input image", type="string")
+                      
+    parser.add_option("-o", "--outputfolder", dest="output",
+                      help="specify output folder", type="string", default="output")
     
     parser.add_option("-s", "--size", dest="size",
                       help="specify a target size for each piece, default 100", type="int", default=100)

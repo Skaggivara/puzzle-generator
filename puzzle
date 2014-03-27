@@ -76,7 +76,7 @@ def create_pieces(options=None):
     
         print "optimizing image size..."
         
-        fixed_file = os.path.join(os.getcwd(), TMP_FOLDER, "size_fixed.png")
+        fixed_file = os.path.join(os.getcwd(), TMP_FOLDER, "size_fixed.mpc")
         
         # cropping to fitting size
         call(["convert", image_file, "-gravity", "Center", "-crop","%dx%d+0+0" % (n_width, n_height), "+repage", fixed_file])
@@ -97,7 +97,11 @@ def create_pieces(options=None):
     
     # generate playing field
     pieces_info = generate_pieces(rows,columns)
+    
+    
+    create_masks(mask_piece_size)
 
+    return
     # create pieces
     print_pieces(bordered_file, mask_piece_size, PIECE_SIZE, pieces_info)
     
@@ -106,6 +110,7 @@ def create_pieces(options=None):
     
     atlases_required = atlases_needed(mask_piece_size + (PADDING*2), len(pieces_info))
     
+    return 
     print "creating atlases..."
     for i in range(len(atlases_required)):
         
@@ -130,7 +135,21 @@ def create_pieces(options=None):
     
     sys.stdout.write("\all done!")
     sys.stdout.flush()
+
+def create_masks(piece_size):
     
+    command = ["cd", os.path.join(os.getcwd(), MASK_FOLDER), "&&", "mogrify", "-resize", "%dx%d" % (piece_size, piece_size), "-format", "mpc", "*.png"]
+    
+    call(command)
+    #call(["cd", os.path.join(cwd, MASK_FOLDER), "mogrify", "-resize", "%dx%d" % (piece_size, piece_size), "-format", "mpc", "*.png"])
+    
+
+def cleanup():
+
+    call(["rm", os.path.join(os.getcwd(), TMP_FOLDER, "*.cache")])
+    call(["rm", os.path.join(os.getcwd(), MASK_FOLDER, "*.cache")])
+    call(["rm", os.path.join(os.getcwd(), TMP_FOLDER, "*.mpc")])
+    call(["rm", os.path.join(os.getcwd(), MASK_FOLDER, "*.mpc")])
 
 def atlases_needed(piece_size, num_pieces):
     atlases = []

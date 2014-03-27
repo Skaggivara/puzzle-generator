@@ -1,7 +1,10 @@
 tmp
 output
+input
 images
 assets
+*.cache
+*.mpc
 *.pyc
 *.pyo
 .DS_Store

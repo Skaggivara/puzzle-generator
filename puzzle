@@ -100,9 +100,8 @@ def create_pieces(options=None):
     
     
     create_masks(mask_piece_size)
-
-    return
     # create pieces
+
     print_pieces(bordered_file, mask_piece_size, PIECE_SIZE, pieces_info)
     
     # fit pieces onto atlas
@@ -138,9 +137,16 @@ def create_pieces(options=None):
 
 def create_masks(piece_size):
     
-    command = ["cd", os.path.join(os.getcwd(), MASK_FOLDER), "&&", "mogrify", "-resize", "%dx%d" % (piece_size, piece_size), "-format", "mpc", "*.png"]
+    cwd = os.getcwd()
+
+    os.chdir(os.path.join(os.getcwd(), MASK_FOLDER)) 
     
-    call(command)
+    #command = ["mogrify", "-resize", "%dx%d" % (piece_size, piece_size), "-format", "mpc", "*.png"]
+    
+    call(["mogrify", "-resize", "%dx%d" % (piece_size, piece_size), "-format", "mpc", "*.png"])
+    
+    os.chdir(cwd)
+    
     #call(["cd", os.path.join(cwd, MASK_FOLDER), "mogrify", "-resize", "%dx%d" % (piece_size, piece_size), "-format", "mpc", "*.png"])
     
 
@@ -173,9 +179,10 @@ def print_pieces(input, piece_size, offset, pieces):
         x = pieces[i]["offset"][0]
         y = pieces[i]["offset"][1]
         
-        mask = os.path.join(os.getcwd(), TMP_FOLDER, "mask.png")
+        #mask = os.path.join(os.getcwd(), TMP_FOLDER, "mask.png")
         
-        call(["convert", pieces[i]["mask"], "-resize", "%dx%d" % (piece_size,piece_size), mask])
+        #call(["convert", pieces[i]["mask"], "-resize", "%dx%d" % (piece_size,piece_size), mask])
+        mask = pieces[i]["mask"]
         call(["convert", input, mask, "-geometry", "+%d+%d" % (x * offset, y * offset), "-alpha", "Off", "-compose", "CopyOpacity", "-composite", "-crop","%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
         
         _print_progress("creating pieces ", int(float((i+1))/len(pieces) * 100))
@@ -323,7 +330,7 @@ def generate_pieces(rows, columns):
                 piece["corners"] = [1 - above["corners"][2], random.randint(0,1), random.randint(0,1), 1 - before["corners"][1]]
             
             
-            mask = os.path.join(os.getcwd(), MASK_FOLDER, "%s_%d_%d_%d_%d.png" % (piece_type, piece["corners"][0], piece["corners"][1], piece["corners"][2], piece["corners"][3]))
+            mask = os.path.join(os.getcwd(), MASK_FOLDER, "%s_%d_%d_%d_%d.mpc" % (piece_type, piece["corners"][0], piece["corners"][1], piece["corners"][2], piece["corners"][3]))
             
             piece["mask"] = mask
             pieces.append(piece)

@@ -21,6 +21,7 @@ ATLAS_SIZES         = [1024, 2048, 4096]
 PADDING             = 2
 
 PIECE_SIZE          = 100
+SECTIONS            = 4
 
 TEXTURE_TOOL_PATH   = os.path.join("/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/","texturetool")
 
@@ -44,7 +45,8 @@ def create_pieces(options=None):
     PIECE_SIZE = options.size
     PADDING = options.padding
     OUTPUT_FOLDER = options.output
-    
+    SECTIONS = options.sections
+
     identify = check_output(["identify", "-format", "%[w] %[h]", options.filename])
     if identify.endswith('\n'):
         identify = identify[:-1]
@@ -69,14 +71,24 @@ def create_pieces(options=None):
     
     n_width = img_w - w_remainder
     n_height = img_h - h_remainder
+
+    print (n_width / PIECE_SIZE) / SECTIONS
+    print (n_height / PIECE_SIZE) / SECTIONS
     
+    cols_per_section = float(n_width / PIECE_SIZE) / 6 
+    rows_per_section = float(n_height / PIECE_SIZE) / SECTIONS
+    
+    if not float(cols_per_section).is_integer() or not float(rows_per_section).is_integer():
+        print "sections needs to be evenly dividable by piece size"
+        sys.exit(1)
+
     # does it need resizing?
     fixed_file = image_file
     if w_remainder != 0 or h_remainder != 0:
     
         print "optimizing image size..."
         
-        fixed_file = os.path.join(os.getcwd(), TMP_FOLDER, "size_fixed.mpc")
+        fixed_file = os.path.join(os.getcwd(), TMP_FOLDER, "size_fixed.png")
         
         # cropping to fitting size
         call(["convert", image_file, "-gravity", "Center", "-crop","%dx%d+0+0" % (n_width, n_height), "+repage", fixed_file])
@@ -86,11 +98,10 @@ def create_pieces(options=None):
     
     mask_piece_size = int((PIECE_SIZE * RATIO)+.5)
     
-    
     # add border to make piece fitting easier
     border_size = int((mask_piece_size - PIECE_SIZE) * .5)
     
-    bordered_file = os.path.join(os.getcwd(), TMP_FOLDER, "bordered.png")
+    bordered_file = os.path.join(os.getcwd(), TMP_FOLDER, "bordered.mpc")
     
     print "preparing image..."
     call(["convert", fixed_file, "-matte", "-bordercolor", "none", "-border", "%d" % border_size, bordered_file])
@@ -98,18 +109,17 @@ def create_pieces(options=None):
     # generate playing field
     pieces_info = generate_pieces(rows,columns)
     
-    
+    # create masks 
     create_masks(mask_piece_size)
+    
     # create pieces
-
-    print_pieces(bordered_file, mask_piece_size, PIECE_SIZE, pieces_info)
+    print_pieces(bordered_file, pieces_info, mask_piece_size, PIECE_SIZE)
     
     # fit pieces onto atlas
     atlases = []
     
     atlases_required = atlases_needed(mask_piece_size + (PADDING*2), len(pieces_info))
     
-    return 
     print "creating atlases..."
     for i in range(len(atlases_required)):
         
@@ -141,14 +151,31 @@ def create_masks(piece_size):
 
     os.chdir(os.path.join(os.getcwd(), MASK_FOLDER)) 
     
-    #command = ["mogrify", "-resize", "%dx%d" % (piece_size, piece_size), "-format", "mpc", "*.png"]
-    
     call(["mogrify", "-resize", "%dx%d" % (piece_size, piece_size), "-format", "mpc", "*.png"])
     
     os.chdir(cwd)
-    
-    #call(["cd", os.path.join(cwd, MASK_FOLDER), "mogrify", "-resize", "%dx%d" % (piece_size, piece_size), "-format", "mpc", "*.png"])
-    
+
+"""
+def create_parts(input, pieces, piece_size, offset):
+
+    for i in range(1):
+        x = pieces[i]["offset"][0]
+        y = pieces[i]["offset"][1]
+
+        # create cutout
+
+        #convert rose: -crop 40x30+10+10\!  crop_vp.gif
+        
+        part = os.path.join(os.getcwd(), TMP_FOLDER, "%d_%d_part.mpc" % (x, y))
+
+        call(["convert", input, "-crop" ,"%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), part])
+        mask = pieces[i]["mask"]
+        call(["composite", "-compose", "copy_opacity", mask, part, os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
+        #composite -compose copy_opacity mask.png image.png result.png
+        #call(["convert", part, mask, "-geometry", "+%d+%d" % (0, 0), "-alpha", "Off", "-compose", "CopyOpacity", "-composite", "-crop","%dx%d+%d+%d" % (piece_size, piece_size, 0, 0), "+repage", os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
+        #call(["convert", input, mask, "-geometry", "+%d+%d" % (x * offset, y * offset), "-alpha", "Off", "-compose", "CopyOpacity", "-composite", "-crop","%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), "+repage", os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
+
+"""
 
 def cleanup():
 
@@ -172,18 +199,20 @@ def atlases_needed(piece_size, num_pieces):
     return atlases
 
 
-def print_pieces(input, piece_size, offset, pieces):
+def print_pieces(input, pieces, piece_size, offset):
     
     for i in range(len(pieces)):
         
         x = pieces[i]["offset"][0]
         y = pieces[i]["offset"][1]
         
-        #mask = os.path.join(os.getcwd(), TMP_FOLDER, "mask.png")
-        
-        #call(["convert", pieces[i]["mask"], "-resize", "%dx%d" % (piece_size,piece_size), mask])
         mask = pieces[i]["mask"]
-        call(["convert", input, mask, "-geometry", "+%d+%d" % (x * offset, y * offset), "-alpha", "Off", "-compose", "CopyOpacity", "-composite", "-crop","%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
+        part = os.path.join(os.getcwd(), TMP_FOLDER, "%d_%d_part.mpc" % (x, y))
+
+        call(["convert", input, "-crop" ,"%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), part])
+        call(["composite", "-compose", "copy_opacity", mask, part, os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
+       
+        #call(["convert", input, mask, "-geometry", "+%d+%d" % (x * offset, y * offset), "-alpha", "Off", "-compose", "CopyOpacity", "-composite", "-crop","%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), "+repage", os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
         
         _print_progress("creating pieces ", int(float((i+1))/len(pieces) * 100))
     
@@ -235,7 +264,31 @@ def print_to_atlas(name, size, piece_size, pieces):
     
     call(atlas_command)
     
-    return atlas_info    
+    return atlas_info
+
+def create_sections(sections, total_cols, total_rows, piece_size, padding):
+    
+    cols = sections / 2
+    rows = sections / 2
+    
+    startx = 0
+    starty = 0
+
+    for i in range(sections):
+
+
+
+
+    # cols per section
+    # rows per section
+    
+    canvas = os.path.join(os.getcwd(), TMP_FOLDER, "atlas_temp.mpc")
+    # make texture atlas
+    call(["convert", "-size","%dx%d" % (size, size), "canvas:khaki", "-alpha", "transparent", canvas])
+    
+
+
+
 
 # how many pieces in this size atlas
 def get_atlas_max(size, piece_size):
@@ -406,6 +459,9 @@ if __name__ == "__main__":
     
     parser.add_option("-c", "--compress", dest="compress", action="store_true",
                       help="compression, default false", default=False)
+    
+    parser.add_option("-r", "--sections", dest="sections", 
+                      help="how many sections to divide the image in, default 4", default=4)
     
     (options, args) = parser.parse_args()
     

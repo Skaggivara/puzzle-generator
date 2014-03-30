@@ -91,7 +91,7 @@ def create_pieces(options=None):
         fixed_file = os.path.join(os.getcwd(), TMP_FOLDER, "size_fixed.png")
         
         # cropping to fitting size
-        #call(["convert", image_file, "-gravity", "Center", "-crop","%dx%d+0+0" % (n_width, n_height), "+repage", fixed_file])
+        call(["convert", image_file, "-gravity", "Center", "-crop","%dx%d+0+0" % (n_width, n_height), "+repage", fixed_file])
     
     rows = n_height / PIECE_SIZE
     columns = n_width / PIECE_SIZE
@@ -105,7 +105,6 @@ def create_pieces(options=None):
     
     print "preparing image..."
     call(["convert", fixed_file, "-matte", "-bordercolor", "none", "-border", "%d" % border_size, bordered_file])
-    
     # generate playing field
     pieces_info = generate_pieces(rows,columns)
     
@@ -115,38 +114,16 @@ def create_pieces(options=None):
     # create pieces
     print_pieces(bordered_file, pieces_info, mask_piece_size, PIECE_SIZE)
     
-    data = create_sections(SECTIONS, columns, rows, mask_piece_size, PADDING)
-    """
-
-    # fit pieces onto atlas
-    atlases = []
-    
-    atlases_required = atlases_needed(mask_piece_size + (PADDING*2), len(pieces_info))
-    
-    print "creating atlases..."
-    for i in range(len(atlases_required)):
-        
-        pieces_subset = pieces_info[0:atlases_required[i]["pieces"]]
-        
-        atlases.append(print_to_atlas("%s_%d" % (basename, i), atlases_required[i]['size'], mask_piece_size, pieces_subset))
-        
-        pieces_info = pieces_info[atlases_required[i]["pieces"]:len(pieces_info)]
-        
-    # encode puzzle to json
-    puzzle = {
-        "name": basename,
-        "rows": rows,
-        "columns": columns,
-        "num_pieces": rows * columns,
-        "atlases": atlases
-    }
-    """
+    # create json
+    data = create_sections(SECTIONS, columns, rows, PIECE_SIZE, mask_piece_size, PADDING)
     data_file = open(os.path.join(os.getcwd(), OUTPUT_FOLDER, "%s_atlas.json" % basename), 'w')
     data_file.write(json.dumps(data))
     data_file.close()
 
     sys.stdout.write("\all done!")
     sys.stdout.flush()
+
+    cleanup()
 
 def create_masks(piece_size):
     
@@ -158,48 +135,14 @@ def create_masks(piece_size):
     
     os.chdir(cwd)
 
-"""
-def create_parts(input, pieces, piece_size, offset):
-
-    for i in range(1):
-        x = pieces[i]["offset"][0]
-        y = pieces[i]["offset"][1]
-
-        # create cutout
-
-        #convert rose: -crop 40x30+10+10\!  crop_vp.gif
-        
-        part = os.path.join(os.getcwd(), TMP_FOLDER, "%d_%d_part.mpc" % (x, y))
-
-        call(["convert", input, "-crop" ,"%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), part])
-        mask = pieces[i]["mask"]
-        call(["composite", "-compose", "copy_opacity", mask, part, os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
-        #composite -compose copy_opacity mask.png image.png result.png
-        #call(["convert", part, mask, "-geometry", "+%d+%d" % (0, 0), "-alpha", "Off", "-compose", "CopyOpacity", "-composite", "-crop","%dx%d+%d+%d" % (piece_size, piece_size, 0, 0), "+repage", os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
-        #call(["convert", input, mask, "-geometry", "+%d+%d" % (x * offset, y * offset), "-alpha", "Off", "-compose", "CopyOpacity", "-composite", "-crop","%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), "+repage", os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
-
-"""
-
 def cleanup():
 
     call(["rm", os.path.join(os.getcwd(), TMP_FOLDER, "*.cache")])
     call(["rm", os.path.join(os.getcwd(), MASK_FOLDER, "*.cache")])
     call(["rm", os.path.join(os.getcwd(), TMP_FOLDER, "*.mpc")])
     call(["rm", os.path.join(os.getcwd(), MASK_FOLDER, "*.mpc")])
-
-def atlases_needed(piece_size, num_pieces):
-    atlases = []
-    while(num_pieces>0):
-        target_atlas_size = get_atlas_fit(piece_size, num_pieces)
-        if target_atlas_size is not None:
-            atlases.append({"size":target_atlas_size, "pieces":num_pieces})
-            num_pieces = 0
-        else:
-            in_atlas = get_atlas_max(ATLAS_SIZES[-1], piece_size)
-            atlases.append({"size":ATLAS_SIZES[-1], "pieces":in_atlas})
-            num_pieces -= in_atlas
-    
-    return atlases
+    call(["rm", os.path.join(os.getcwd(), OUTPUT_FOLDER, "*.mpc")])
+    call(["rm", os.path.join(os.getcwd(), OUTPUT_FOLDER, "*.cache")])
 
 
 def print_pieces(input, pieces, piece_size, offset):
@@ -215,63 +158,11 @@ def print_pieces(input, pieces, piece_size, offset):
         call(["convert", input, "-crop" ,"%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), part])
         call(["composite", "-compose", "copy_opacity", mask, part, os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
        
-        #call(["convert", input, mask, "-geometry", "+%d+%d" % (x * offset, y * offset), "-alpha", "Off", "-compose", "CopyOpacity", "-composite", "-crop","%dx%d+%d+%d" % (piece_size, piece_size, x * offset, y * offset), "+repage", os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))])
-        
         _print_progress("creating pieces ", int(float((i+1))/len(pieces) * 100))
     
 
-def print_to_atlas(name, size, piece_size, pieces):
+def create_sections(sections, total_cols, total_rows, inner_piece_size, piece_size, padding):
     
-    atlas_info = {
-        "size": size,
-        "unit": piece_size,
-        "padding": PADDING,
-        "filename": "%s_atlas_%sx%s.png" % (name, size, size), 
-        "pieces": []
-    }
-    
-    canvas = os.path.join(os.getcwd(), TMP_FOLDER, "atlas_temp.png")
-    # make texture atlas
-    call(["convert", "-size","%dx%d" % (size, size), "canvas:khaki", "-alpha", "transparent", canvas])
-    
-    atlas_command = ["convert", canvas]
-    
-    per_row = size / (piece_size + (PADDING * 2))
-    
-    row = 0
-    col = 0
-    for i in range(len(pieces)):
-        if col == per_row:
-            col = 0
-            row += 1
-        x = pieces[i]["offset"][0]
-        y = pieces[i]["offset"][1]
-        
-        piece_w_h = piece_size + (PADDING * 2)
-        
-        real_s_x = (col * piece_w_h)+PADDING
-        real_s_y = (row * piece_w_h)+PADDING
-        
-        real_e_x = (col * piece_w_h)+(PADDING + piece_size)
-        real_e_y = (row * piece_w_h)+(PADDING + piece_size)
-        
-        tile = os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (x, y))
-        
-        atlas_command += ["-draw", "image Over %d,%d %d,%d '%s'" % (real_s_x, real_s_y, piece_size, piece_size, tile)]
-        atlas_info["pieces"].append({"id":[x,y], "x":[real_s_x/float(size),real_e_x/float(size)], "y":[real_s_y/float(size),real_e_y/float(size)]})
-        col += 1
-    
-    result = os.path.join(os.getcwd(), OUTPUT_FOLDER, "%s_atlas_%sx%s.png" % (name, size, size))
-    
-    atlas_command.append(result)
-    
-    call(atlas_command)
-    
-    return atlas_info
-
-def create_sections(sections, total_cols, total_rows, piece_size, padding):
-    
-
     container_piece_size = piece_size + (padding * 2)
 
     section_width = (total_cols * container_piece_size) / sections
@@ -296,53 +187,42 @@ def create_sections(sections, total_cols, total_rows, piece_size, padding):
             start_col = col * cols_per_section
             end_col = start_col + cols_per_section
 
-            canvas = os.path.join(os.getcwd(), TMP_FOLDER, "atlas_%d_%d.png" % (col, row))
+            canvas = os.path.join(os.getcwd(), OUTPUT_FOLDER, "atlas_%d_%d.mpc" % (col, row))
+            canvas_final = os.path.join(os.getcwd(), OUTPUT_FOLDER, "atlas_%d_%d.png" % (col, row))
             
             call(["convert", "-size","%dx%d" % (section_width, section_height), "canvas:khaki", "-alpha", "transparent", canvas])
 
             print "x%d - x%d, y%d - y%d" % (start_col, end_col, start_row, end_row)
             command = ["convert", canvas]
             
-            section_data = {"section":index, "atlas": canvas, "width": section_width, "height": section_height,"piece_size":piece_size + (padding * 2), "cols":cols_per_section, "rows":rows_per_section, "file": canvas}
+            section_data = {"section":index, "atlas":canvas, "width":section_width, "height":section_height,"outer_piece_size":piece_size + (padding * 2), "inner_piece_size":inner_piece_size, "piece_size":piece_size,"cols":cols_per_section, "rows":rows_per_section, "file":canvas}
 
             sections_data["sections"].append(section_data)
 
+            row_index = 0
+            col_index = 0
+
             for c_col in range(start_col, end_col):
+                
+                row_index = 0
 
                 for c_row in range(start_row, end_row):
 
-                    # add to the section
-                    """
-                    real_s_x = (col * piece_w_h)+PADDING
-                    real_s_y = (row * piece_w_h)+PADDING
-            
-                    real_e_x = (col * piece_w_h)+(PADDING + piece_size)
-                    real_e_y = (row * piece_w_h)+(PADDING + piece_size)
-
-                    #atlas_info["pieces"].append({"id":[x,y], "x":[real_s_x/float(size),real_e_x/float(size)], "y":[real_s_y/float(size),real_e_y/float(size)]}) 
-                    """
-
-                    x = (c_row * container_piece_size) + padding
-                    y = (c_col * container_piece_size) + padding
+                    x = (col_index * container_piece_size) + padding
+                    y = (row_index * container_piece_size) + padding
 
                     tile = os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (c_col, c_row))
-                    command += ["-draw", "image Over %d,%d %d,%d '%s'" % (x, y, piece_size, piece_size, tile)]
+                    call(["convert", canvas, "-draw", "image Over %d,%d %d,%d '%s'" % (x, y, piece_size, piece_size, tile), canvas])
+                    row_index += 1
 
-            index++
+                col_index += 1
+            
+            index += 1
 
-            call(command)
+            call(["convert", canvas, canvas_final])
 
 
     return sections_data
-    # write json file
-
-    # cols per section
-    # rows per section
-    
-    # canvas = os.path.join(os.getcwd(), TMP_FOLDER, "atlas_temp.mpc")
-    # make texture atlas
-    # call(["convert", "-size","%dx%d" % (size, size), "canvas:khaki", "-alpha", "transparent", canvas])
-    
 
 
 # how many pieces in this size atlas

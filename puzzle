@@ -116,6 +116,9 @@ def create_pieces(options=None):
     
     # create json
     data = create_sections(SECTIONS, columns, rows, PIECE_SIZE, mask_piece_size, PADDING)
+
+    data = add_piece_corners(pieces_info, data);
+
     data_file = open(os.path.join(os.getcwd(), OUTPUT_FOLDER, "%s_atlas.json" % basename), 'w')
     data_file.write(json.dumps(data))
     data_file.close()
@@ -124,6 +127,24 @@ def create_pieces(options=None):
     sys.stdout.flush()
 
     cleanup()
+
+
+def corners_for_col_row(pieces, col, row):
+    
+    for piece in pieces:
+        if piece["offset"][0] == col and piece["offset"][1] == row:
+            return piece["corners"]
+
+    return [0,0,0,0]
+
+def add_piece_corners(pieces, sections):
+
+    for section in sections:
+        for piece in section["pieces"]:
+            piece["corners"] = corners_for_col_row(pieces, piece["col"], piece["row"])
+
+    return sections
+
 
 def create_masks(piece_size):
     
@@ -195,9 +216,8 @@ def create_sections(sections, total_cols, total_rows, inner_piece_size, piece_si
             print "x%d - x%d, y%d - y%d" % (start_col, end_col, start_row, end_row)
             command = ["convert", canvas]
             
-            section_data = {"section":index, "atlas":canvas, "width":section_width, "height":section_height,"outer_piece_size":piece_size + (padding * 2), "inner_piece_size":inner_piece_size, "piece_size":piece_size,"cols":cols_per_section, "rows":rows_per_section, "file":canvas}
+            section_data = {"section":index, "atlas":canvas, "width":section_width, "height":section_height,"outer_piece_size":piece_size + (padding * 2), "inner_piece_size":inner_piece_size, "piece_size":piece_size,"cols":cols_per_section, "rows":rows_per_section, "file":canvas, "pieces":[]}
 
-            sections_data["sections"].append(section_data)
 
             row_index = 0
             col_index = 0
@@ -213,10 +233,14 @@ def create_sections(sections, total_cols, total_rows, inner_piece_size, piece_si
 
                     tile = os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (c_col, c_row))
                     call(["convert", canvas, "-draw", "image Over %d,%d %d,%d '%s'" % (x, y, piece_size, piece_size, tile), canvas])
+
+                    section_data["pieces"].append({"col":c_col, "row":c_row, "corners":[0,0,0,0]})
                     row_index += 1
 
                 col_index += 1
             
+
+            sections_data["sections"].append(section_data)
             index += 1
 
             call(["convert", canvas, canvas_final])

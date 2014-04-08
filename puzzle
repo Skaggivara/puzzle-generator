@@ -8,6 +8,7 @@ import sys
 import random
 from optparse import OptionParser
 from subprocess import call, check_call, CalledProcessError, check_output
+import uuid
 
 """
 TODO: Add texture compression option
@@ -105,9 +106,10 @@ def create_pieces(options=None):
     
     print "preparing image..."
     call(["convert", fixed_file, "-matte", "-bordercolor", "none", "-border", "%d" % border_size, bordered_file])
+
     # generate playing field
     pieces_info = generate_pieces(rows,columns)
-    
+  
     # create masks 
     create_masks(mask_piece_size)
     
@@ -117,31 +119,49 @@ def create_pieces(options=None):
     # create json
     data = create_sections(SECTIONS, columns, rows, PIECE_SIZE, mask_piece_size, PADDING)
 
-    data = add_piece_corners(pieces_info, data);
+    cornered = add_piece_corners(pieces_info, data);
 
-    data_file = open(os.path.join(os.getcwd(), OUTPUT_FOLDER, "%s_atlas.json" % basename), 'w')
-    data_file.write(json.dumps(data))
-    data_file.close()
+    for section in cornered["sections"]:
+        write_json_file(os.path.join(os.getcwd(), OUTPUT_FOLDER, "section_%s_index.json" % section["section"]), section["pieces"])
+
+        for piece in section["pieces"]:
+            piece.pop("row")
+            piece.pop("col")
+        write_json_file(os.path.join(os.getcwd(), OUTPUT_FOLDER, "section_%s.json" % section["section"]), section["pieces"])
+
+    # remove pieces
+    for section in data["sections"]:
+        section.pop("pieces", None)
+    
+    # write final atlas json
+    write_json_file(os.path.join(os.getcwd(), OUTPUT_FOLDER, "%s_atlas.json" % basename), data)
+
+    cleanup()
 
     sys.stdout.write("\all done!")
     sys.stdout.flush()
 
-    cleanup()
 
+def write_json_file(path, data):
+    data_file = open(path, 'w')
+    data_file.write(json.dumps(data))
+    data_file.close()
 
-def corners_for_col_row(pieces, col, row):
+def piece_for_col_row(pieces, col, row):
     
     for piece in pieces:
         if piece["offset"][0] == col and piece["offset"][1] == row:
-            return piece["corners"]
+            return piece
 
-    return [0,0,0,0]
+    return None
 
 def add_piece_corners(pieces, sections):
 
-    for section in sections:
+    for section in sections["sections"]:
         for piece in section["pieces"]:
-            piece["corners"] = corners_for_col_row(pieces, piece["col"], piece["row"])
+            d = piece_for_col_row(pieces, piece["col"], piece["row"])
+            piece["id"] = d["id"]
+            piece["corners"] = d["corners"]
 
     return sections
 
@@ -158,12 +178,12 @@ def create_masks(piece_size):
 
 def cleanup():
 
-    call(["rm", os.path.join(os.getcwd(), TMP_FOLDER, "*.cache")])
-    call(["rm", os.path.join(os.getcwd(), MASK_FOLDER, "*.cache")])
-    call(["rm", os.path.join(os.getcwd(), TMP_FOLDER, "*.mpc")])
-    call(["rm", os.path.join(os.getcwd(), MASK_FOLDER, "*.mpc")])
-    call(["rm", os.path.join(os.getcwd(), OUTPUT_FOLDER, "*.mpc")])
-    call(["rm", os.path.join(os.getcwd(), OUTPUT_FOLDER, "*.cache")])
+    call("rm %s" % os.path.join(os.getcwd(), TMP_FOLDER, "*.cache"), shell=True)
+    call("rm %s" % os.path.join(os.getcwd(), TMP_FOLDER, "*.mpc"), shell=True)
+    call("rm %s" % os.path.join(os.getcwd(), MASK_FOLDER, "*.cache"), shell=True)
+    call("rm %s" % os.path.join(os.getcwd(), MASK_FOLDER, "*.mpc"), shell=True)
+    call("rm %s" % os.path.join(os.getcwd(), OUTPUT_FOLDER, "*.cache"), shell=True)
+    call("rm %s" % os.path.join(os.getcwd(), OUTPUT_FOLDER, "*.mpc"), shell=True)
 
 
 def print_pieces(input, pieces, piece_size, offset):
@@ -214,13 +234,27 @@ def create_sections(sections, total_cols, total_rows, inner_piece_size, piece_si
             call(["convert", "-size","%dx%d" % (section_width, section_height), "canvas:khaki", "-alpha", "transparent", canvas])
 
             print "x%d - x%d, y%d - y%d" % (start_col, end_col, start_row, end_row)
-            command = ["convert", canvas]
             
-            section_data = {"section":index, "atlas":canvas, "width":section_width, "height":section_height,"outer_piece_size":piece_size + (padding * 2), "inner_piece_size":inner_piece_size, "piece_size":piece_size,"cols":cols_per_section, "rows":rows_per_section, "file":canvas, "pieces":[]}
+            section_data = {
+                    "section":index, 
+                    "image":os.path.basename(canvas_final),
+                    "data":"section_%d.json" % index, 
+                    "width":section_width,
+                    "height":section_height,
+                    "outer_piece_size":piece_size + (padding * 2),
+                    "inner_piece_size":inner_piece_size,
+                    "piece_size":piece_size,
+                    "cols":cols_per_section,
+                    "rows":rows_per_section,
+                    "pieces":[]
+            }
 
 
             row_index = 0
             col_index = 0
+
+            positions = []
+            tiles = []
 
             for c_col in range(start_col, end_col):
                 
@@ -231,14 +265,31 @@ def create_sections(sections, total_cols, total_rows, inner_piece_size, piece_si
                     x = (col_index * container_piece_size) + padding
                     y = (row_index * container_piece_size) + padding
 
-                    tile = os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (c_col, c_row))
-                    call(["convert", canvas, "-draw", "image Over %d,%d %d,%d '%s'" % (x, y, piece_size, piece_size, tile), canvas])
+                    positions.append({"x":x, "y":y, "row":row_index, "col": col_index})
 
-                    section_data["pieces"].append({"col":c_col, "row":c_row, "corners":[0,0,0,0]})
+                    tile = os.path.join(os.getcwd(), TMP_FOLDER, "x%d_y%d.png" % (c_col, c_row))
+
+                    tiles.append({"tile":tile, "row": c_row, "col": c_col})
+                    """
+                    call(["convert", canvas, "-draw", "image Over %d,%d %d,%d '%s'" % (x, y, piece_size, piece_size, tile), canvas])
+                    """
+                    #section_data["pieces"].append({"col":c_col, "row":c_row, "p_row": row_index ,"p_col": col_index, "corners":[0,0,0,0]})
+                    
                     row_index += 1
 
                 col_index += 1
             
+
+            # scramble positions
+            positions_rand = scrambled(positions)
+
+            # stamp pieces on atlas
+            for t in range(len(tiles)):
+                
+                call(["convert", canvas, "-draw", "image Over %d,%d %d,%d '%s'" % (positions_rand[t]["x"], positions_rand[t]["y"], piece_size, piece_size, tiles[t]["tile"]), canvas])
+
+                section_data["pieces"].append({"col":tiles[t]["col"], "row":tiles[t]["row"], "p_row": positions_rand[t]["row"] ,"p_col": positions_rand[t]["col"], "corners":[0,0,0,0]})
+
 
             sections_data["sections"].append(section_data)
             index += 1
@@ -248,6 +299,11 @@ def create_sections(sections, total_cols, total_rows, inner_piece_size, piece_si
 
     return sections_data
 
+
+def scrambled(orig):
+    dest = orig[:]
+    random.shuffle(dest)
+    return dest
 
 # how many pieces in this size atlas
 def get_atlas_max(size, piece_size):
@@ -271,6 +327,7 @@ def generate_pieces(rows, columns):
         for column in range(columns):
             
             piece = {
+                "id": "",
                 "mask": "",
                 "corners": [0,0,0,0],
                 "offset": [column, row],
@@ -345,6 +402,7 @@ def generate_pieces(rows, columns):
             mask = os.path.join(os.getcwd(), MASK_FOLDER, "%s_%d_%d_%d_%d.mpc" % (piece_type, piece["corners"][0], piece["corners"][1], piece["corners"][2], piece["corners"][3]))
             
             piece["mask"] = mask
+            piece["id"] = str(uuid.uuid4()) 
             pieces.append(piece)
     
     return pieces
@@ -420,7 +478,7 @@ if __name__ == "__main__":
                       help="compression, default false", default=False)
     
     parser.add_option("-r", "--sections", dest="sections", 
-                      help="how many sections to divide the image in, default 4", default=4)
+                      help="how many sections to divide the image in, default 4", type="int", default=4)
     
     (options, args) = parser.parse_args()
     
